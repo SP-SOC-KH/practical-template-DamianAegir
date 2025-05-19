@@ -1,6 +1,26 @@
 const { query } = require('../database');
 const { EMPTY_RESULT_ERROR, SQL_ERROR_CODE, UNIQUE_VIOLATION_ERROR } = require('../errors');
 
+module.exports.create = function create(code, name, credit)
+{
+    const sql = 'CALL create_module($1, $2, $3)';
+    return query(sql, [code, name, credit])
+        .then(function (result)
+        {
+            console.log('Module created successfully');
+        })
+        .catch(function (error)
+        {
+            if (error.code === SQL_ERROR_CODE.UNIQUE_VIOLATION)
+            {
+                throw new UNIQUE_VIOLATION_ERROR(`Module ${code} already exists! Cannot create duplicate.`);
+            }
+            throw error;
+        });
+};
+
+/*
+// Original code
 module.exports.create = function create(code, name, credit) {
     const sql = `INSERT INTO module (mod_code, mod_name, credit_unit) VALUES ($1, $2, $3)`;
     return query(sql, [code, name, credit]).catch(function (error) {
@@ -10,6 +30,7 @@ module.exports.create = function create(code, name, credit) {
         throw error;
     });
 };
+*/
 
 module.exports.retrieveByCode = function retrieveByCode(code) {
     const sql = `SELECT * FROM module WHERE mod_code = $1`;
@@ -26,6 +47,7 @@ module.exports.retrieveByCode = function retrieveByCode(code) {
     });
 };
 
+/*
 module.exports.deleteByCode = function deleteByCode(code) {
     // Note:
     // If using raw sql: Can use result.rowCount to check the number of rows affected
@@ -56,6 +78,41 @@ module.exports.updateByCode = function updateByCode(code, credit) {
             throw new EMPTY_RESULT_ERROR(`Module ${code} not found!`);
         }
     })
+};
+*/
+
+// Delete Module
+module.exports.deleteByCode = function deleteByCode(code) {
+    return query('CALL delete_module($1)', [code])
+        .then(function () {
+            console.log('Module deleted successfully');
+        })
+        .catch(function (error) {
+            if (error.code === 'P0001') {  // Procedure RAISE EXCEPTION
+                throw new EMPTY_RESULT_ERROR(`Module ${code} not found!`);
+            }
+            if (error.code === '23503') {  // Foreign key violation
+                throw new FOREIGN_KEY_VIOLATION_ERROR(
+                    `Module ${code} cannot be deleted - students have taken this module!`
+                );
+            }
+            throw error;
+        });
+};
+
+// Update Module
+module.exports.updateByCode = function updateByCode(code, credit) {
+  return query('CALL update_module($1, $2)', [code, credit])
+    .then(() => console.log('Module updated'))
+    .catch((error) => {
+      if (error.code === 'P0001') {
+        throw new EMPTY_RESULT_ERROR(`Module ${code} not found!`);
+      }
+      if (error.code === '23502') {
+        throw new Error('Missing required fields');
+      }
+      throw error;
+    });
 };
 
 module.exports.retrieveAll = function retrieveAll() {
